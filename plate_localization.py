@@ -3,6 +3,7 @@ import os
 import numpy as np
 from matplotlib import pyplot as plt
 
+
 # Show image
 def show_image(title, image):
     if image.size == 0:
@@ -38,9 +39,9 @@ def pointLimit(point, maxWidth, maxHeight):
 
 def initialize():
     if os.name == 'nt':
-        os.system('del /f /q plates\\*')
+        os.system('del /f /q plates\\* chars\\*')
     elif os.name == 'posix':
-        os.system('rm -rf plates/*')
+        os.system('rm -rf plates/* chars/*')
     else:
         pass
 
@@ -140,6 +141,7 @@ class Locator:
             colours.append(colour)
             # next plate
             if colour is None:
+                affined_plates[index] = None
                 continue
             left, right, top, bottom = self.get_accurate_plate(img_hsv, thres1, thres2, colour)
             w = right - left
@@ -163,7 +165,7 @@ class Locator:
                 angle = 1
             else:
                 angle = plate[2]
-            plate = (plate[0], (plate[1][0]+5, plate[1][1]+5), angle)
+            plate = (plate[0], (plate[1][0]+10, plate[1][1]+10), angle)
             box = cv2.boxPoints(plate)
             # get all coordinates
             w, h = plate[1][0], plate[1][1]
@@ -200,9 +202,6 @@ class Locator:
         vehicle_image = cv2.imread(self.path)
         initialize()
         # show_image('Car Plate', vehicle_image)
-        # Predefined parameters
-        max_length = 700 # Maximum length of resized image
-        min_area = 2000 # Minimum area for a component to be considered as a possible plate
         # Resize
         h, w = vehicle_image.shape[:2]
         width, height = self.zoom(w, h)
@@ -227,11 +226,11 @@ class Locator:
         se2 = np.ones((10, 19), np.uint8)
         edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, se2)
         edges = cv2.morphologyEx(edges, cv2.MORPH_OPEN, se2)
-        plt_show_gray(edges)
+        # plt_show_gray(edges)
 
         # Find contours
         contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        contours = [contour for contour in contours if cv2.contourArea(contour) > min_area]
+        contours = [contour for contour in contours if cv2.contourArea(contour) > self.min_area]
         # Delete invalid contours
         plates = []
         canvas = vehicle_image.copy()
@@ -255,7 +254,11 @@ class Locator:
         if len(affined_plates) > 0:
             self.get_by_colour(affined_plates)
             for i in range(len(affined_plates)):
+                if affined_plates[i] is None:
+                    continue 
                 cv2.imwrite("plates/plate{}.jpg".format(i), affined_plates[i])
+            return affined_plates
+        return []
 
 
 if __name__ == "__main__":
