@@ -32,6 +32,8 @@ class Segment:
     def segment_plate(self):
         for index, plate in enumerate(self.plates):
             # grayscale
+            if plate is None:
+                continue
             gray_plate = cv2.cvtColor(plate, cv2.COLOR_BGR2GRAY)
             # binarize
             _, binary_plate = cv2.threshold(gray_plate, 0, 255, cv2.THRESH_OTSU)
@@ -51,12 +53,14 @@ class Segment:
             # dilation
             # edges = cv2.Canny(binary_plate, 90, 100)
             # show_image("edges", edges)
-            se = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-            binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_OPEN, se)
+            se1 = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+            se2 = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+            binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_ERODE, se1)
+            binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_DILATE, se2)
             show_image("dilated binary_plate", binary_plate)
             # find contour
             contours, hierarchy = cv2.findContours(binary_plate, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            contours = [contour for contour in contours if cv2.contourArea(contour) > 300]
+            contours = [contour for contour in contours if cv2.contourArea(contour) > 90]
             # view contours
             plate_copy = plate.copy()
             cv2.drawContours(plate_copy, contours, -1, (0, 0, 255), 5)
@@ -86,7 +90,7 @@ class Segment:
 
 if __name__ == "__main__":
     from plate_localization import Locator
-    locator = Locator("image/4.jpg")
+    locator = Locator("image/4.jpeg")
     plates = locator.find_plate()
     segment = Segment(plates)
     segment.segment_plate()

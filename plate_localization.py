@@ -102,9 +102,9 @@ class Locator:
                     right = col
         return left, right, top, bottom
 
-    def get_by_colour(self, affined_plates):
+    def get_by_colour(self, adjusted_plates):
         colours = []
-        for index, plate in enumerate(affined_plates):
+        for index, plate in enumerate(adjusted_plates):
             green = yellow = blue = 0
             img_hsv = cv2.cvtColor(plate, cv2.COLOR_BGR2HSV)
             rows, cols = img_hsv.shape[:2]
@@ -141,7 +141,7 @@ class Locator:
             colours.append(colour)
             # next plate
             if colour is None:
-                affined_plates[index] = None
+                adjusted_plates[index] = None
                 continue
             left, right, top, bottom = self.get_accurate_plate(img_hsv, thres1, thres2, colour)
             w = right - left
@@ -155,11 +155,12 @@ class Locator:
             # print("Coordinates of plate: {} {} {} {}".format(top, bottom, left, right))
             accurate_plate = plate[top:bottom, left:right]
             if accurate_plate.size != 0:
-                affined_plates[index] = accurate_plate
+                adjusted_plates[index] = accurate_plate
                 show_image("Accurate plate", accurate_plate)
-
+    
+    """
     def affine(self, plates, vehicle_image, width, height):
-        affined_plates = []
+        adjusted_plates = []
         for index, plate in enumerate(plates):
             if plate[2] > -1 and plate[2] < 1:
                 angle = 1
@@ -194,9 +195,47 @@ class Locator:
             # Store affined plate
             affined_plate = affined_image[int(LT[1]):int(new_LB[1]), int(new_LB[0]):int(new_RB[0])]
             if affined_plate.size != 0:
-                affined_plates.append(affined_plate)
+                adjusted_plates.append(affined_plate)
                 show_image("Affined plate", affined_plate)
-        return affined_plates
+        return adjusted_plates
+    """
+
+    def projection_transform(self, plates, vehicle_image, width, height):
+        adjusted_plates = []
+        for index, plate in enumerate(plates):
+            if plate[2] > -1 and plate[2] < 1:
+                angle = 1
+            else:
+                angle = plate[2]
+            plate = (plate[0], (plate[1][0]+10, plate[1][1]+10), angle)
+            box = cv2.boxPoints(plate)
+            # get all coordinates
+            w, h = plate[1][0], plate[1][1]
+            w, h = int(w), int(h)
+            if w > h:
+                LT = box[1]
+                LB = box[0]
+                RT = box[2]
+                RB = box[3]
+            else:
+                w, h = h, w
+                LT = box[0]
+                LB = box[3]
+                RT = box[1]
+                RB = box[2]
+    
+            for point in [LT, LB, RT, RB]:
+                pointLimit(point, width, height)
+
+            # Projection transform
+            src_points = np.float32([LT, RT, RB, LB])
+            dst_points = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
+            M = cv2.getPerspectiveTransform(src_points, dst_points)
+            adjusted_plate = cv2.warpPerspective(vehicle_image, M, (w, h))
+            if adjusted_plate.size != 0:
+                adjusted_plates.append(adjusted_plate)
+                show_image("Adjusted plate", adjusted_plate)
+        return adjusted_plates
 
     def find_plate(self):
         vehicle_image = cv2.imread(self.path)
@@ -226,7 +265,7 @@ class Locator:
         se2 = np.ones((10, 19), np.uint8)
         edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, se2)
         edges = cv2.morphologyEx(edges, cv2.MORPH_OPEN, se2)
-        # plt_show_gray(edges)
+        plt_show_gray(edges)
 
         # Find contours
         contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -249,18 +288,18 @@ class Locator:
         show_image("image", canvas)
         print("Plates detected: {}".format(len(plates)))
         # Affine transform
-        affined_plates = self.affine(plates, vehicle_image, width, height)
-        print("Numbers of affined plates {}".format(len(affined_plates)))
-        if len(affined_plates) > 0:
-            self.get_by_colour(affined_plates)
-            for i in range(len(affined_plates)):
-                if affined_plates[i] is None:
+        adjusted_plates = self.projection_transform(plates, vehicle_image, width, height)
+        print("Numbers of adjusted plates {}".format(len(adjusted_plates)))
+        if len(adjusted_plates) > 0:
+            self.get_by_colour(adjusted_plates)
+            for i in range(len(adjusted_plates)):
+                if adjusted_plates[i] is None:
                     continue 
-                cv2.imwrite("plates/plate{}.jpg".format(i), affined_plates[i])
-            return affined_plates
+                cv2.imwrite("plates/plate{}.jpg".format(i), adjusted_plates[i])
+            return adjusted_plates
         return []
 
 
 if __name__ == "__main__":
-    locator = Locator("image/1.jpg")
+    locator = Locator("image/2.jpg")
     locator.find_plate()
