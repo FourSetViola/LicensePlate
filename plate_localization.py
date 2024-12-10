@@ -301,5 +301,5 @@ class Locator:
 
 
 if __name__ == "__main__":
-    locator = Locator("image/2.jpg")
+    locator = Locator("image/1.jpg")
     locator.find_plate()
