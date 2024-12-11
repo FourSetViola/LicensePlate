@@ -25,15 +25,31 @@ def plt_show_gray(image):
     plt.show()
 
 
+def zoom(w, h, max_length):
+        widthScale = max_length / w
+        heightScale = max_length / h
+
+        scale = min(widthScale, heightScale)
+
+        resizedWidth = int(w * scale)
+        resizedHeight = int(h * scale)
+
+        return resizedWidth, resizedHeight
+
 class Segment:
     def __init__(self, plates=[]):
         self.plates = plates
 
     def segment_plate(self):
+        plates_in_chars = []
         for index, plate in enumerate(self.plates):
+            plate_in_chars = []
             # grayscale
             if plate is None:
                 continue
+            # h, w = plate.shape[:2]
+            # resizedWidth, resizedHeight = zoom(w, h, 226)
+            # plate = cv2.resize(plate, (resizedWidth, resizedHeight))
             gray_plate = cv2.cvtColor(plate, cv2.COLOR_BGR2GRAY)
             # binarize
             _, binary_plate = cv2.threshold(gray_plate, 0, 255, cv2.THRESH_OTSU)
@@ -77,7 +93,7 @@ class Segment:
                 char.append(h)
                 chars.append(char)
             chars = sorted(chars, key=lambda char: char[0])
-            i = 0
+            i = 1
             print("chars: ", len(chars))
             for char in chars:
                 x, y, w, h = char
@@ -85,8 +101,12 @@ class Segment:
                 if (aspect_ratio > 1.8) and (aspect_ratio < 2.5):
                     i += 1
                     char_image = plate[y:y + h, x:x + w]
+                    plate_in_chars.append(char_image)
                     # show_image("char{}".format(i), char_image)
                     cv2.imwrite("chars/plate{}_char{}.jpg".format(index,i), char_image)
+            if len(plate_in_chars) != 0:
+                plates_in_chars.append(plate_in_chars)
+        return plates_in_chars
 
 if __name__ == "__main__":
     from plate_localization import Locator

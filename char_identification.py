@@ -37,42 +37,59 @@ class CharIdentification:
                           "L", "M", "N", "P", "Q", "R", "S", "T", "U", "V", \
                           "W", "X", "Y", "Z", \
                           "藏", "川", "鄂", "甘", "赣", "港", "贵", "桂", "黑", "沪", \
-                          "吉", "冀", "津", "晋", "jing", "辽", "鲁", "蒙", "闽", "宁", \
+                          "吉", "冀", "津", "晋", "京", "辽", "鲁", "蒙", "闽", "宁", \
                           "青", "琼", "陕", "苏", "皖", "湘", "新", "渝", "豫", "粤", \
                           "云", "浙"]
+        self.template_w = 20
+        self.template_h = 40
 
     def read_templates(self):
         templates = []
         for i in self.template1:
-            file_path = "mainland_china_templates/{}.jpg".format(i)
-            file_path = file_path.encode("utf-8").decode("utf-8")
-            template = cv2.imread(file_path, cv2.IMREAD_GRAYSCALE)
+            file_path = os.path.join("mainland_china_templates", i + ".jpg")
+            file_path = os.path.abspath(file_path)
+            template = cv2.imdecode(np.fromfile(file_path, dtype=np.uint8), -1)
             if template is None:
-                # print(i)
+                print(f"Failed to read template: {i}")
                 continue
             templates.append(template)
         return templates
-    
+
     def identify_char(self):
         templates = self.read_templates()
+        w, h = self.template_w, self.template_h
+        identified_plates = []
         for index, plate in enumerate(self.plates_in_chars):
+            if plate is None:
+                continue
+            identified_chars = ""
             for j, char in enumerate(plate):
-                plt_show_rgb(char)
+                scores = []
+                # plt_show_rgb(char)
                 char = cv2.GaussianBlur((char), (3, 3), 0)
                 gray_char = cv2.cvtColor(char, cv2.COLOR_BGR2GRAY)
                 _, binary_char = cv2.threshold(gray_char, 0, 255, cv2.THRESH_OTSU)
-                plt_show_gray(binary_char)
+                binary_char = cv2.resize(binary_char, (w, h), interpolation=cv2.INTER_LINEAR)
+                se = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+                binary_char = cv2.morphologyEx(binary_char, cv2.MORPH_CLOSE, se)
+                # plt_show_gray(binary_char)
                 for k, template in enumerate(templates):
-                    w, h = template.shape[::-1]
-                    binary_char = cv2.resize(binary_char, (w, h))
                     res = cv2.matchTemplate(binary_char, template, cv2.TM_CCOEFF_NORMED)
-
-
+                    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+                    scores.append([max_val, k])
+                scores.sort(reverse=True)
+                identified_char = self.template1[scores[0][1]]
+                identified_chars += identified_char
+            identified_plates.append(identified_chars)
+        return identified_plates
+        
 
 if __name__ == "__main__":
-    test_char = cv2.imread("chars/plate0_char2.jpg")
-    c = CharIdentification([[test_char]])
-    c.identify_char()
-    # img = cv2.imread("mainland_china_templates/A.jpg", cv2.IMREAD_GRAYSCALE)
-    # cv2.imshow("img", img)
-    # cv2.waitKey()
+    locator = Locator("image/4.jpeg")
+    plates = locator.find_plate()
+    segment = Segment(plates)
+    plates_in_chars = segment.segment_plate()
+    char_identification = CharIdentification(plates_in_chars)
+    identified_plates = char_identification.identify_char()
+    print(identified_plates)
+    

@@ -158,7 +158,6 @@ class Locator:
                 adjusted_plates[index] = accurate_plate
                 show_image("Accurate plate", accurate_plate)
     
-    """
     def affine(self, plates, vehicle_image, width, height):
         adjusted_plates = []
         for index, plate in enumerate(plates):
@@ -198,7 +197,6 @@ class Locator:
                 adjusted_plates.append(affined_plate)
                 show_image("Affined plate", affined_plate)
         return adjusted_plates
-    """
 
     def projection_transform(self, plates, vehicle_image, width, height):
         adjusted_plates = []
@@ -244,13 +242,13 @@ class Locator:
         # Resize
         h, w = vehicle_image.shape[:2]
         width, height = self.zoom(w, h)
-        vehicle_image = cv2.resize(vehicle_image, (width, height))
+        vehicle_image = cv2.resize(vehicle_image, (width, height), interpolation=cv2.INTER_AREA)
         # Gaussian filter
-        vehicle_image = cv2.GaussianBlur(vehicle_image, (3, 3), 0)
+        vehicle_image = cv2.GaussianBlur(vehicle_image, (7, 7), 0)
         gray_image = cv2.cvtColor(vehicle_image, cv2.COLOR_BGR2GRAY)
         # plt_show_gray(gray_image)
         # Open
-        se1 = np.ones((20, 20), np.uint8)
+        se1 = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 10))
         opened_img = cv2.morphologyEx(gray_image, cv2.MORPH_OPEN, se1)
         # plt_show_gray(opened_img)
         # Weighted
@@ -262,7 +260,7 @@ class Locator:
         edges = cv2.Canny(binary_img, 100, 200)
         # plt_show_gray(edges)
         # Close and open
-        se2 = np.ones((10, 19), np.uint8)
+        se2 = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 19))
         edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, se2)
         edges = cv2.morphologyEx(edges, cv2.MORPH_OPEN, se2)
         plt_show_gray(edges)
@@ -301,5 +299,5 @@ class Locator:
 
 
 if __name__ == "__main__":
-    locator = Locator("image/1.jpg")
+    locator = Locator("image/4.jpeg")
     locator.find_plate()
