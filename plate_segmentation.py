@@ -47,9 +47,9 @@ class Segment:
             # grayscale
             if plate is None:
                 continue
-            # h, w = plate.shape[:2]
-            # resizedWidth, resizedHeight = zoom(w, h, 226)
-            # plate = cv2.resize(plate, (resizedWidth, resizedHeight))
+            h, w = plate.shape[:2]
+            resizedWidth, resizedHeight = zoom(w, h, 600)
+            plate = cv2.resize(plate, (resizedWidth, resizedHeight), interpolation=cv2.INTER_AREA)
             gray_plate = cv2.cvtColor(plate, cv2.COLOR_BGR2GRAY)
             # binarize
             _, binary_plate = cv2.threshold(gray_plate, 0, 255, cv2.THRESH_OTSU)
@@ -69,14 +69,20 @@ class Segment:
             # dilation
             # edges = cv2.Canny(binary_plate, 90, 100)
             # show_image("edges", edges)
-            se1 = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-            se2 = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+            se1 = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+            se2 = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))
+            se3 = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 1))
             binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_ERODE, se1)
+            show_image("erode1", binary_plate)
             binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_DILATE, se2)
-            show_image("dilated binary_plate", binary_plate)
+            show_image("dilate1", binary_plate)
+            binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_DILATE, se3)
+            show_image("dilate2", binary_plate)
+            # binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_ERODE, se1)
+            # show_image("erode2", binary_plate)
             # find contour
             contours, hierarchy = cv2.findContours(binary_plate, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            contours = [contour for contour in contours if cv2.contourArea(contour) > 90]
+            contours = [contour for contour in contours if cv2.contourArea(contour) > 1200]
             # view contours
             plate_copy = plate.copy()
             cv2.drawContours(plate_copy, contours, -1, (0, 0, 255), 5)
@@ -98,7 +104,7 @@ class Segment:
             for char in chars:
                 x, y, w, h = char
                 aspect_ratio = h / w
-                if (aspect_ratio > 1.8) and (aspect_ratio < 2.5):
+                if (aspect_ratio > 1.8) and (aspect_ratio < 3):
                     i += 1
                     char_image = plate[y:y + h, x:x + w]
                     plate_in_chars.append(char_image)

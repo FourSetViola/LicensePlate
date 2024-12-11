@@ -63,15 +63,28 @@ class CharIdentification:
             if plate is None:
                 continue
             identified_chars = ""
-            for j, char in enumerate(plate):
+            for j, char in enumerate(plate): 
                 scores = []
                 # plt_show_rgb(char)
                 char = cv2.GaussianBlur((char), (3, 3), 0)
                 gray_char = cv2.cvtColor(char, cv2.COLOR_BGR2GRAY)
                 _, binary_char = cv2.threshold(gray_char, 0, 255, cv2.THRESH_OTSU)
                 binary_char = cv2.resize(binary_char, (w, h), interpolation=cv2.INTER_LINEAR)
-                se = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+                # unify the binary form for plates of all colours
+                area_white = 0
+                area_black = 0
+                h, w = binary_char.shape
+                for i in range(h):
+                    for j in range(w):
+                        if binary_char[i, j] == 255:
+                            area_white += 1
+                        else:
+                            area_black += 1
+                if area_white > area_black:
+                    _, binary_char = cv2.threshold(gray_char, 0, 255, cv2.THRESH_OTSU | cv2.THRESH_BINARY_INV)
+                se = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
                 binary_char = cv2.morphologyEx(binary_char, cv2.MORPH_CLOSE, se)
+                cv2.imwrite(f"{j}.jpg", binary_char)
                 # plt_show_gray(binary_char)
                 for k, template in enumerate(templates):
                     res = cv2.matchTemplate(binary_char, template, cv2.TM_CCOEFF_NORMED)

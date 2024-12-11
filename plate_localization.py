@@ -105,7 +105,7 @@ class Locator:
     def get_by_colour(self, adjusted_plates):
         colours = []
         for index, plate in enumerate(adjusted_plates):
-            green = yellow = blue = 0
+            green = yellow = blue = black = 0
             img_hsv = cv2.cvtColor(plate, cv2.COLOR_BGR2HSV)
             rows, cols = img_hsv.shape[:2]
             size = rows * cols
@@ -123,6 +123,9 @@ class Locator:
                         green += 1
                     elif 99 < H <= 124 and S > 34:
                         blue += 1
+                    elif S < 34 and V < 46:
+                        colour = "black"
+                        black += 1
             
             thres1 = thres2 = 0
             if yellow * 3 >= size:
@@ -244,8 +247,8 @@ class Locator:
         width, height = self.zoom(w, h)
         vehicle_image = cv2.resize(vehicle_image, (width, height), interpolation=cv2.INTER_AREA)
         # Gaussian filter
-        vehicle_image = cv2.GaussianBlur(vehicle_image, (7, 7), 0)
-        gray_image = cv2.cvtColor(vehicle_image, cv2.COLOR_BGR2GRAY)
+        filtered_image = cv2.GaussianBlur(vehicle_image, (7, 7), 0)
+        gray_image = cv2.cvtColor(filtered_image, cv2.COLOR_BGR2GRAY)
         # plt_show_gray(gray_image)
         # Open
         se1 = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 10))
@@ -277,7 +280,7 @@ class Locator:
             if w < h:
                 w, h = h, w # swap width and height
             aspect_ratio = w / h
-            if aspect_ratio > 2 and aspect_ratio < 4:
+            if aspect_ratio > 2 and aspect_ratio < 7:
                 plates.append(rect)
                 cv2.drawContours(canvas, contours, index, (255, 255, 255), 1, 8)
                 box = cv2.boxPoints(rect)
