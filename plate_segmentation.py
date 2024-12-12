@@ -69,7 +69,7 @@ class Segment:
             # dilation
             # edges = cv2.Canny(binary_plate, 90, 100)
             # show_image("edges", edges)
-            se1 = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+            se1 = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
             se2 = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))
             se3 = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 1))
             binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_ERODE, se1)
@@ -104,7 +104,7 @@ class Segment:
             for char in chars:
                 x, y, w, h = char
                 aspect_ratio = h / w
-                if (aspect_ratio > 1) and (aspect_ratio < 2.5):
+                if (aspect_ratio > 1.4) and (aspect_ratio < 2.5):
                     i += 1
                     char_image = plate[y:y + h, x:x + w]
                     plate_in_chars.append(char_image)
