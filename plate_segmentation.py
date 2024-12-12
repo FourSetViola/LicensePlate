@@ -82,7 +82,7 @@ class Segment:
             # show_image("erode2", binary_plate)
             # find contour
             contours, hierarchy = cv2.findContours(binary_plate, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            contours = [contour for contour in contours if cv2.contourArea(contour) > 1200]
+            contours = [contour for contour in contours if cv2.contourArea(contour) > 2000]
             # view contours
             plate_copy = plate.copy()
             cv2.drawContours(plate_copy, contours, -1, (0, 0, 255), 5)
@@ -104,7 +104,7 @@ class Segment:
             for char in chars:
                 x, y, w, h = char
                 aspect_ratio = h / w
-                if (aspect_ratio > 1.8) and (aspect_ratio < 3):
+                if (aspect_ratio > 1) and (aspect_ratio < 2.5):
                     i += 1
                     char_image = plate[y:y + h, x:x + w]
                     plate_in_chars.append(char_image)
