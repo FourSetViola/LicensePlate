@@ -66,41 +66,42 @@ class Locator:
 
     def get_accurate_plate(self, img_hsv, thres1, thres2, colour):
         rows,cols = img_hsv.shape[:2]
-        left = cols
-        right = 0
-        top = rows
-        bottom = 0
-
-        rows_thres = rows * 0.8 if colour != "green" else rows * 0.5
-        cols_thres = cols * 0.8 if colour != "green" else cols * 0.5
-
+        colour_plate = np.zeros((rows, cols), dtype=np.uint8)
+        # black out the pixels that does not satisfy the colour of the plate
         for row in range(rows):
-            count = 0
             for col in range(cols):
                 H = img_hsv.item(row, col, 0)
                 S = img_hsv.item(row, col, 1)
                 V = img_hsv.item(row, col, 2)
                 if thres1 < H <= thres2 and S > 34 and V > 46:
-                    count += 1
-            if count > cols_thres:
-                if top > row:
-                    top = row
-                if bottom < row:
-                    bottom = row
-        for col in range(cols):
-            count = 0
-            for row in range(rows):
-                H = img_hsv.item(row, col, 0)
-                S = img_hsv.item(row, col, 1)
-                V = img_hsv.item(row, col, 2)
-                if thres1 < H <= thres2 and S > 34 and V > 46:
-                    count += 1
-            if count > rows_thres:
-                if left > col:
-                    left = col
-                if right < col:
-                    right = col
-        return left, right, top, bottom
+                    colour_plate[row, col] = 255
+        # use morphological operations to connect the white components and remove noise
+        se_open = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        se_close = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 19))
+        colour_plate = cv2.morphologyEx(colour_plate, cv2.MORPH_OPEN, se_open)
+        colour_plate = cv2.morphologyEx(colour_plate, cv2.MORPH_CLOSE, se_close)
+        show_image("Colour plate", colour_plate)
+        # find contours of the plate
+        contours, _ = cv2.findContours(colour_plate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        largest_contour = max(contours, key=cv2.contourArea)
+        hull = cv2.convexHull(largest_contour)
+        # approximate the quadrilateral shape of the plate
+        epsilon = 0.02 * cv2.arcLength(hull, True)
+        approx_quad = cv2.approxPolyDP(hull, epsilon, True)
+        # divide the points into left-most points and right-most points
+        sorted_points = sorted(approx_quad.reshape(-1, 2), key=lambda p: (p[0], p[1]))
+        left = sorted_points[:2]  # left top and left bottom
+        right = sorted_points[-2:]  # right top and right bottom
+        # further divide two groups into top-most and bottom-most points
+        left = sorted(left, key=lambda p: p[1]) 
+        right = sorted(right, key=lambda p: p[1])
+        # left top, right top, right bottom, left bottom
+        approx_quad = np.array([left[0], right[0], right[1], left[1]])
+        # display
+        cv2.polylines(img_hsv, [approx_quad.reshape(-1, 1, 2)], isClosed=True, color=(255, 0, 0), thickness=5)
+        show_image("Plated relocated", img_hsv)
+
+        return approx_quad
 
     def get_by_colour(self, adjusted_plates):
         colours = []
@@ -123,9 +124,8 @@ class Locator:
                         green += 1
                     elif 99 < H <= 124 and S > 34:
                         blue += 1
-                    elif S < 34 and V < 46:
-                        colour = "black"
-                        black += 1
+                    # elif S < 34 and V < 46:
+                    #     black += 1
             
             thres1 = thres2 = 0
             if yellow * 3 >= size:
@@ -146,20 +146,12 @@ class Locator:
             if colour is None:
                 adjusted_plates[index] = None
                 continue
-            left, right, top, bottom = self.get_accurate_plate(img_hsv, thres1, thres2, colour)
-            w = right - left
-            h = bottom - top
-            if left == right or top == bottom:
-                continue
-            aspect_ratio = w / h
-            if aspect_ratio < 2 or aspect_ratio > 4:
-                continue
-
-            # print("Coordinates of plate: {} {} {} {}".format(top, bottom, left, right))
-            accurate_plate = plate[top:bottom, left:right]
-            if accurate_plate.size != 0:
+            src_points = self.get_accurate_plate(img_hsv, thres1, thres2, colour)
+            tl, tr, br, bl = src_points
+            # print("Coordinates of plate: {} {} {} {}".format(tl, tr, br, bl))
+            accurate_plate = self.projection_transform(plate, src_points)
+            if adjusted_plates[index] is not None:
                 adjusted_plates[index] = accurate_plate
-                show_image("Accurate plate", accurate_plate)
     
     def affine(self, plates, vehicle_image, width, height):
         adjusted_plates = []
@@ -201,42 +193,18 @@ class Locator:
                 show_image("Affined plate", affined_plate)
         return adjusted_plates
 
-    def projection_transform(self, plates, vehicle_image, width, height):
-        adjusted_plates = []
-        for index, plate in enumerate(plates):
-            if plate[2] > -1 and plate[2] < 1:
-                angle = 1
-            else:
-                angle = plate[2]
-            plate = (plate[0], (plate[1][0]+10, plate[1][1]+10), angle)
-            box = cv2.boxPoints(plate)
-            # get all coordinates
-            w, h = plate[1][0], plate[1][1]
-            w, h = int(w), int(h)
-            if w > h:
-                LT = box[1]
-                LB = box[0]
-                RT = box[2]
-                RB = box[3]
-            else:
-                w, h = h, w
-                LT = box[0]
-                LB = box[3]
-                RT = box[1]
-                RB = box[2]
-    
-            for point in [LT, LB, RT, RB]:
-                pointLimit(point, width, height)
-
-            # Projection transform
-            src_points = np.float32([LT, RT, RB, LB])
-            dst_points = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
-            M = cv2.getPerspectiveTransform(src_points, dst_points)
-            adjusted_plate = cv2.warpPerspective(vehicle_image, M, (w, h))
-            if adjusted_plate.size != 0:
-                adjusted_plates.append(adjusted_plate)
-                show_image("Adjusted plate", adjusted_plate)
-        return adjusted_plates
+    def projection_transform(self, plate, src_points):
+        h, w = plate.shape[:2]
+        h, w = int(h), int(w)
+        # print("Width: {}, Height: {}".format(w, h))
+        # Projection transform
+        src_points = np.float32(src_points)
+        dst_points = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
+        M = cv2.getPerspectiveTransform(src_points, dst_points)
+        adjusted_plate = cv2.warpPerspective(plate, M, (w, h))
+        if adjusted_plate.size != 0:
+            show_image("Adjusted plate", adjusted_plate)
+            return adjusted_plate
 
     def find_plate(self):
         vehicle_image = cv2.imread(self.path)
@@ -251,7 +219,7 @@ class Locator:
         gray_image = cv2.cvtColor(filtered_image, cv2.COLOR_BGR2GRAY)
         # plt_show_gray(gray_image)
         # Open
-        se1 = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 10))
+        se1 = cv2.getStructuringElement(cv2.MORPH_RECT, (10, 10))
         opened_img = cv2.morphologyEx(gray_image, cv2.MORPH_OPEN, se1)
         # plt_show_gray(opened_img)
         # Weighted
@@ -261,11 +229,12 @@ class Locator:
         # plt_show_gray(binary_img)
         # Find edge
         edges = cv2.Canny(binary_img, 100, 200)
-        # plt_show_gray(edges)
+        plt_show_gray(edges)
         # Close and open
-        se2 = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 19))
-        edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, se2)
-        edges = cv2.morphologyEx(edges, cv2.MORPH_OPEN, se2)
+        se_close = cv2.getStructuringElement(cv2.MORPH_RECT, (19, 5))
+        se_open = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, se_close)
+        edges = cv2.morphologyEx(edges, cv2.MORPH_OPEN, se_open)
         plt_show_gray(edges)
 
         # Find contours
@@ -289,7 +258,7 @@ class Locator:
         show_image("image", canvas)
         print("Plates detected: {}".format(len(plates)))
         # Affine transform
-        adjusted_plates = self.projection_transform(plates, vehicle_image, width, height)
+        adjusted_plates = self.affine(plates, vehicle_image, width, height)
         print("Numbers of adjusted plates {}".format(len(adjusted_plates)))
         if len(adjusted_plates) > 0:
             self.get_by_colour(adjusted_plates)
@@ -302,5 +271,5 @@ class Locator:
 
 
 if __name__ == "__main__":
-    locator = Locator("image/4.jpeg")
+    locator = Locator("image/1.jpg")
     locator.find_plate()
