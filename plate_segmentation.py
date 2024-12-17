@@ -69,20 +69,18 @@ class Segment:
             # dilation
             # edges = cv2.Canny(binary_plate, 90, 100)
             # show_image("edges", edges)
-            se1 = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-            se2 = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))
-            se3 = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 1))
-            binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_ERODE, se1)
-            show_image("erode1", binary_plate)
-            binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_DILATE, se2)
-            show_image("dilate1", binary_plate)
-            binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_DILATE, se3)
-            show_image("dilate2", binary_plate)
-            # binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_ERODE, se1)
-            # show_image("erode2", binary_plate)
+            se1 = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+            binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_OPEN, se1)
+            show_image("open", binary_plate)
+            # binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_DILATE, se1)
+            # show_image("dilate1", binary_plate)
+            # binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_DILATE, se1)
+            # show_image("dilate2", binary_plate)
+            binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_CLOSE, se1)
+            show_image("close", binary_plate)
             # find contour
             contours, hierarchy = cv2.findContours(binary_plate, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            contours = [contour for contour in contours if cv2.contourArea(contour) > 2000]
+            contours = [contour for contour in contours if cv2.contourArea(contour) > 700]
             # view contours
             plate_copy = plate.copy()
             cv2.drawContours(plate_copy, contours, -1, (0, 0, 255), 5)
@@ -100,18 +98,20 @@ class Segment:
                 chars.append(char)
             chars = sorted(chars, key=lambda char: char[0])
             i = 1
-            print("chars: ", len(chars))
             for char in chars:
                 x, y, w, h = char
                 aspect_ratio = h / w
-                if (aspect_ratio > 1.4) and (aspect_ratio < 2.5):
+                if (aspect_ratio > 1.4 and aspect_ratio < 2.5) or (aspect_ratio > 7 and aspect_ratio < 8):
                     i += 1
                     char_image = plate[y:y + h, x:x + w]
                     plate_in_chars.append(char_image)
                     # show_image("char{}".format(i), char_image)
                     cv2.imwrite("chars/plate{}_char{}.jpg".format(index,i), char_image)
             if len(plate_in_chars) != 0:
+                print("chars: ", len(chars))
                 plates_in_chars.append(plate_in_chars)
+                cv2.imwrite("./output/processed_plate.jpg", binary_plate)
+                plt_show_gray(binary_plate)
         return plates_in_chars
 
 if __name__ == "__main__":

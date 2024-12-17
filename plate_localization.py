@@ -39,9 +39,9 @@ def pointLimit(point, maxWidth, maxHeight):
 
 def initialize():
     if os.name == 'nt':
-        os.system('del /f /q plates\\* chars\\*')
+        os.system('del /f /q plates\\* chars\\* output\\*')
     elif os.name == 'posix':
-        os.system('rm -rf plates/* chars/*')
+        os.system('rm -rf plates/* chars/* output/*')
     else:
         pass
 
@@ -83,6 +83,8 @@ class Locator:
         show_image("Colour plate", colour_plate)
         # find contours of the plate
         contours, _ = cv2.findContours(colour_plate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if len(contours) == 0:
+            return None
         largest_contour = max(contours, key=cv2.contourArea)
         hull = cv2.convexHull(largest_contour)
         # approximate the quadrilateral shape of the plate
@@ -147,6 +149,9 @@ class Locator:
                 adjusted_plates[index] = None
                 continue
             src_points = self.get_accurate_plate(img_hsv, thres1, thres2, colour)
+            if src_points is None:
+                adjusted_plates[index] = None
+                continue
             tl, tr, br, bl = src_points
             # print("Coordinates of plate: {} {} {} {}".format(tl, tr, br, bl))
             accurate_plate = self.projection_transform(plate, src_points)
