@@ -45,7 +45,7 @@ class CharIdentification:
 
     def read_directory(self, path):
         templates = []
-        directory_path = os.path.join("mainland_china_templates", path)
+        directory_path = os.path.join("templates", path)
         for filename in os.listdir(directory_path):
             file_path = os.path.join(directory_path, filename)
             file_path = os.path.abspath(file_path)
@@ -56,7 +56,7 @@ class CharIdentification:
     def read_templates(self):
         templates = []
         for i in self.template1:
-            file_path = os.path.join("mainland_china_templates", i + ".jpg")
+            file_path = os.path.join("templates", i + ".jpg")
             file_path = os.path.abspath(file_path)
             template = cv2.imdecode(np.fromfile(file_path, dtype=np.uint8), -1)
             if template is None:
@@ -77,23 +77,16 @@ class CharIdentification:
             if plate is None:
                 continue
             identified_chars = ""
+            colour, plate = plate
             for j, char in enumerate(plate): 
                 # plt_show_rgb(char)
                 char = cv2.GaussianBlur((char), (3, 3), 0)
                 gray_char = cv2.cvtColor(char, cv2.COLOR_BGR2GRAY)
-                _, binary_char = cv2.threshold(gray_char, 0, 255, cv2.THRESH_OTSU)
+                if colour == "blue":
+                    _, binary_char = cv2.threshold(gray_char, 0, 255, cv2.THRESH_OTSU)
+                else:
+                    _, binary_char = cv2.threshold(gray_char, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
                 binary_char = cv2.resize(binary_char, (w, h))
-                # unify the binary form for plates of all colours
-                # area_white = 0
-                # area_black = 0
-                # for i in range(h):
-                #     for k in range(w):
-                #         if binary_char[i, k] == 255:
-                #             area_white += 1
-                #         else:
-                #             area_black += 1
-                # if area_white > area_black:
-                #     _, binary_char = cv2.threshold(gray_char, 0, 255, cv2.THRESH_OTSU | cv2.THRESH_BINARY_INV)
                 se = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
                 binary_char = cv2.morphologyEx(binary_char, cv2.MORPH_CLOSE, se)
                 cv2.imwrite(f"./output/{j}.jpg", binary_char)
@@ -113,15 +106,8 @@ class CharIdentification:
                 if identified_char == "_":
                     identified_char = ""
                 identified_chars += identified_char
-            identified_plates.append(identified_chars)
-            #     for k, template in enumerate(templates):
-            #         res = cv2.matchTemplate(binary_char, template, cv2.TM_CCOEFF)
-            #         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
-            #         scores.append([res[0][0], k])
-            #     scores.sort(reverse=True)
-            #     identified_char = self.template1[scores[0][1]]
-            #     identified_chars += identified_char
-            # identified_plates.append(identified_chars)
+            if identified_chars != "":
+                identified_plates.append(identified_chars)
         return identified_plates
         
 
@@ -133,6 +119,4 @@ if __name__ == "__main__":
     c = CharIdentification(plates_in_chars)
     chars = c.identify_char()
     print(chars)
-    # for i in jing:
-    #     plt_show_gray(i)
     

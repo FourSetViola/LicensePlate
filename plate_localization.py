@@ -73,14 +73,18 @@ class Locator:
                 H = img_hsv.item(row, col, 0)
                 S = img_hsv.item(row, col, 1)
                 V = img_hsv.item(row, col, 2)
-                if thres1 < H <= thres2 and S > 34 and V > 46:
-                    colour_plate[row, col] = 255
+                if colour == "black":
+                    if V < 46:
+                        colour_plate[row, col] = 255
+                else:
+                    if thres1 < H <= thres2 and S > 34 and V > 46:
+                        colour_plate[row, col] = 255
         # use morphological operations to connect the white components and remove noise
         se_open = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
         se_close = cv2.getStructuringElement(cv2.MORPH_RECT, (10, 10))
         colour_plate = cv2.morphologyEx(colour_plate, cv2.MORPH_OPEN, se_open)
         colour_plate = cv2.morphologyEx(colour_plate, cv2.MORPH_CLOSE, se_close)
-        show_image("Colour plate", colour_plate)
+        # show_image("Colour plate", colour_plate)
         # find contours of the plate
         contours, _ = cv2.findContours(colour_plate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if len(contours) == 0:
@@ -101,7 +105,7 @@ class Locator:
         approx_quad = np.array([left[0], left[1], right[1], right[0]])
         # display
         cv2.polylines(img_hsv, [approx_quad.reshape(-1, 1, 2)], isClosed=True, color=(255, 0, 0), thickness=5)
-        show_image("Plated relocated", img_hsv)
+        # show_image("Plated relocated", img_hsv)
 
         return approx_quad
 
@@ -119,16 +123,14 @@ class Locator:
                     H = img_hsv.item(row, col, 0)
                     S = img_hsv.item(row, col, 1)
                     V = img_hsv.item(row, col, 2)
-
                     if 11 < H <= 34 and S > 34:
                         yellow += 1
                     elif 35 < H <= 99 and S > 34:
                         green += 1
                     elif 99 < H <= 124 and S > 34:
                         blue += 1
-                    # elif S < 34 and V < 46:
-                    #     black += 1
-            
+                    elif V < 46:
+                        black += 1
             thres1 = thres2 = 0
             if yellow * 3 >= size:
                 colour = "yellow"
@@ -142,6 +144,10 @@ class Locator:
                 colour = "blue"
                 thres1 = 100
                 thres2 = 124
+            elif black * 3 >= size:
+                colour = "black"
+                thres1 = thres2 = 0
+
             print(colour)
             colours.append(colour)
             # next plate
@@ -156,7 +162,7 @@ class Locator:
             # print("Coordinates of plate: {} {} {} {}".format(tl, tr, br, bl))
             accurate_plate = self.projection_transform(plate, src_points)
             if adjusted_plates[index] is not None:
-                adjusted_plates[index] = accurate_plate
+                adjusted_plates[index] = [colour, accurate_plate]
     
     def affine(self, plates, vehicle_image, width, height):
         adjusted_plates = []
@@ -190,12 +196,12 @@ class Locator:
             new_triangle = np.float32([LT, new_LB, new_RB])
             warpMat = cv2.getAffineTransform(old_triangle, new_triangle)
             affined_image = cv2.warpAffine(vehicle_image, warpMat, (width, height))
-            show_image("Affined", affined_image)
+            # show_image("Affined", affined_image)
             # Store affined plate
             affined_plate = affined_image[int(LT[1]):int(new_LB[1]), int(new_LB[0]):int(new_RB[0])]
             if affined_plate.size != 0:
                 adjusted_plates.append(affined_plate)
-                show_image("Affined plate", affined_plate)
+                # show_image("Affined plate", affined_plate)
         return adjusted_plates
 
     def projection_transform(self, plate, src_points):
@@ -208,7 +214,7 @@ class Locator:
         M = cv2.getPerspectiveTransform(src_points, dst_points)
         adjusted_plate = cv2.warpPerspective(plate, M, (w, h))
         if adjusted_plate.size != 0:
-            show_image("Adjusted plate", adjusted_plate)
+            # show_image("Adjusted plate", adjusted_plate)
             return adjusted_plate
 
     def find_plate(self):
@@ -234,13 +240,13 @@ class Locator:
         # plt_show_gray(binary_img)
         # Find edge
         edges = cv2.Canny(binary_img, 100, 200)
-        plt_show_gray(edges)
+        # plt_show_gray(edges)
         # Close and open
         se_close = cv2.getStructuringElement(cv2.MORPH_RECT, (19, 5))
         se_open = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
         edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, se_close)
         edges = cv2.morphologyEx(edges, cv2.MORPH_OPEN, se_open)
-        plt_show_gray(edges)
+        # plt_show_gray(edges)
 
         # Find contours
         contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -260,7 +266,7 @@ class Locator:
                 box = cv2.boxPoints(rect)
                 box = np.intp(box)
                 cv2.drawContours(canvas, [box], 0, (0, 0, 255), 1)
-        show_image("image", canvas)
+        # show_image("image", canvas)
         print("Plates detected: {}".format(len(plates)))
         # Affine transform
         adjusted_plates = self.affine(plates, vehicle_image, width, height)
@@ -269,8 +275,9 @@ class Locator:
             self.get_by_colour(adjusted_plates)
             for i in range(len(adjusted_plates)):
                 if adjusted_plates[i] is None:
-                    continue 
-                cv2.imwrite("plates/plate{}.jpg".format(i), adjusted_plates[i])
+                    continue
+                _, adjusted_plate = adjusted_plates[i] 
+                cv2.imwrite("plates/plate{}.jpg".format(i), adjusted_plate)
             return adjusted_plates
         return []
 

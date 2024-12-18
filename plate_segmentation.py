@@ -36,61 +36,57 @@ def zoom(w, h, max_length):
 
         return resizedWidth, resizedHeight
 
+def constraint(colour, aspect_ratio):
+    if colour == "blue":
+        return (aspect_ratio > 1.8 and aspect_ratio < 3) or \
+            (aspect_ratio > 5 and aspect_ratio < 6) or \
+            (aspect_ratio > 7 and aspect_ratio < 8)
+    elif colour == "yellow":
+        return (aspect_ratio > 1.4 and aspect_ratio < 2.2) or \
+                (aspect_ratio > 5 and aspect_ratio < 6)
+
 class Segment:
     def __init__(self, plates=[]):
         self.plates = plates
 
     def segment_plate(self):
         plates_in_chars = []
-        for index, plate in enumerate(self.plates):
+        for index, colour_plate in enumerate(self.plates):
             plate_in_chars = []
             # grayscale
-            if plate is None:
+            if colour_plate is None:
                 continue
-            h, w = plate.shape[:2]
-            resizedWidth, resizedHeight = zoom(w, h, 250)
+            colour, plate = colour_plate
             plate = cv2.resize(plate, (250, 80), interpolation=cv2.INTER_AREA)
             gray_plate = cv2.cvtColor(plate, cv2.COLOR_BGR2GRAY)
             # binarize
             _, binary_plate = cv2.threshold(gray_plate, 0, 255, cv2.THRESH_OTSU)
             # unify the binary form for plates of all colours
-            area_white = 0
-            area_black = 0
-            h, w = binary_plate.shape
-            for i in range(h):
-                for j in range(w):
-                    if binary_plate[i, j] == 255:
-                        area_white += 1
-                    else:
-                        area_black += 1
-            if area_white > area_black:
-                _, binary_plate = cv2.threshold(gray_plate, 0, 255, cv2.THRESH_OTSU | cv2.THRESH_BINARY_INV)
-            # show_image("unified binary_plate", binary_plate)
+            if colour == "blue":
+                _, binary_plate = cv2.threshold(gray_plate, 0, 255, cv2.THRESH_OTSU)
+            else:
+                _, binary_plate = cv2.threshold(gray_plate, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+            # show_image("binary_plate", binary_plate)
             # dilation
-            # edges = cv2.Canny(binary_plate, 90, 100)
-            # show_image("edges", edges)
-            se_circle = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            if colour == "blue" or colour == "green":
+                se_circle = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
             # se2 = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-            binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_OPEN, se_circle)
-            show_image("De-noise", binary_plate)
-            se_vertical = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 3))
-            binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_CLOSE, se_vertical)
-            show_image("Connect Characters", binary_plate)
-            # se_close = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 1))
-            # binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_CLOSE, se_close)
-            # binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_DILATE, se1)
-            # show_image("dilate1", binary_plate)
-            # binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_DILATE, se1)
-            # show_image("dilate2", binary_plate)
-            # binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_CLOSE, se2)
-            show_image("Strengthen edges", binary_plate)
+                binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_OPEN, se_circle)
+                # show_image("De-noise", binary_plate)
+                se_vertical = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 3))
+                binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_CLOSE, se_vertical)
+                # show_image("Connect Characters", binary_plate)
+            else:
+                se_open = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 1))
+                binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_OPEN, se_open)
+                # show_image("Yellow Plate", binary_plate)
             # find contour
             contours, hierarchy = cv2.findContours(binary_plate, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            contours = [contour for contour in contours if cv2.contourArea(contour) > 300]
+            contours = [contour for contour in contours if cv2.contourArea(contour) > 200]
             # view contours
             plate_copy = plate.copy()
             cv2.drawContours(plate_copy, contours, -1, (0, 0, 255), 5)
-            show_image("contours", plate_copy)
+            # show_image("contours", plate_copy)
             # segment characters
             chars = []
             for contour in contours:
@@ -107,7 +103,7 @@ class Segment:
             for char in chars:
                 x, y, w, h = char
                 aspect_ratio = h / w
-                if (aspect_ratio > 1.8 and aspect_ratio < 3) or (aspect_ratio > 5 and aspect_ratio < 6) or (aspect_ratio > 7 and aspect_ratio < 8):
+                if constraint(colour, aspect_ratio):
                     i += 1
                     char_image = plate[y:y + h, x:x + w]
                     plate_in_chars.append(char_image)
@@ -115,9 +111,9 @@ class Segment:
                     cv2.imwrite("chars/plate{}_char{}.jpg".format(index,i), char_image)
             if len(plate_in_chars) != 0:
                 print("chars: ", len(chars))
-                plates_in_chars.append(plate_in_chars)
+                plates_in_chars.append([colour, plate_in_chars])
                 cv2.imwrite("./output/processed_plate.jpg", binary_plate)
-                plt_show_gray(binary_plate)
+                # plt_show_gray(binary_plate)
         return plates_in_chars
 
 if __name__ == "__main__":
