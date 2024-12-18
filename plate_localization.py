@@ -77,7 +77,7 @@ class Locator:
                     colour_plate[row, col] = 255
         # use morphological operations to connect the white components and remove noise
         se_open = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-        se_close = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 19))
+        se_close = cv2.getStructuringElement(cv2.MORPH_RECT, (10, 10))
         colour_plate = cv2.morphologyEx(colour_plate, cv2.MORPH_OPEN, se_open)
         colour_plate = cv2.morphologyEx(colour_plate, cv2.MORPH_CLOSE, se_close)
         show_image("Colour plate", colour_plate)
@@ -90,15 +90,15 @@ class Locator:
         # approximate the quadrilateral shape of the plate
         epsilon = 0.02 * cv2.arcLength(hull, True)
         approx_quad = cv2.approxPolyDP(hull, epsilon, True)
-        # divide the points into left-most points and right-most points
-        sorted_points = sorted(approx_quad.reshape(-1, 2), key=lambda p: (p[0], p[1]))
-        left = sorted_points[:2]  # left top and left bottom
-        right = sorted_points[-2:]  # right top and right bottom
-        # further divide two groups into top-most and bottom-most points
-        left = sorted(left, key=lambda p: p[1]) 
-        right = sorted(right, key=lambda p: p[1])
+        # divide the points into top-most points and bottom-most points
+        sorted_points = sorted(approx_quad.reshape(-1, 2), key=lambda p: (p[1], p[0]))
+        top = sorted_points[:2]  # top-most points
+        bottom = sorted_points[-2:]  # bottom-most points
+        # further divide two groups into left-most and right-most points
+        left = sorted(top, key=lambda p: p[0]) 
+        right = sorted(bottom, key=lambda p: p[0])
         # left top, right top, right bottom, left bottom
-        approx_quad = np.array([left[0], right[0], right[1], left[1]])
+        approx_quad = np.array([left[0], left[1], right[1], right[0]])
         # display
         cv2.polylines(img_hsv, [approx_quad.reshape(-1, 1, 2)], isClosed=True, color=(255, 0, 0), thickness=5)
         show_image("Plated relocated", img_hsv)

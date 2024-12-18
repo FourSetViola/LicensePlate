@@ -39,7 +39,7 @@ class CharIdentification:
                           "藏", "川", "鄂", "甘", "赣", "港", "贵", "桂", "黑", "沪", \
                           "吉", "冀", "津", "晋", "京", "辽", "鲁", "蒙", "闽", "宁", \
                           "青", "琼", "陕", "苏", "皖", "湘", "新", "渝", "豫", "粤", \
-                          "云", "浙"]
+                          "云", "浙", "_"]
         self.template_w = 20
         self.template_h = 40
 
@@ -110,6 +110,8 @@ class CharIdentification:
                     best_score.append(score[0])
                 best_score.sort(reverse=True)
                 identified_char = self.template1[best_score[0][1]]
+                if identified_char == "_":
+                    identified_char = ""
                 identified_chars += identified_char
             identified_plates.append(identified_chars)
             #     for k, template in enumerate(templates):
