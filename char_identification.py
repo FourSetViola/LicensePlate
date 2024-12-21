@@ -32,7 +32,7 @@ def plt_show_gray(image):
 class CharIdentification:
     def __init__(self, plates_in_chars=[]):
         self.plates_in_chars = plates_in_chars
-        self.template1 = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", \
+        self.templates = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", \
                           "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", \
                           "L", "M", "N", "P", "Q", "R", "S", "T", "U", "V", \
                           "W", "X", "Y", "Z", \
@@ -55,7 +55,7 @@ class CharIdentification:
 
     def read_templates(self):
         templates = []
-        for i in self.template1:
+        for i in self.templates:
             file_path = os.path.join("templates", i + ".jpg")
             file_path = os.path.abspath(file_path)
             template = cv2.imdecode(np.fromfile(file_path, dtype=np.uint8), -1)
@@ -67,7 +67,7 @@ class CharIdentification:
 
     def identify_char(self):
         templates_list = []
-        for i in self.template1:
+        for i in self.templates:
             templates = self.read_directory(i)
             templates_list.append(templates)
         # templates = self.read_templates()
@@ -80,29 +80,33 @@ class CharIdentification:
             colour, plate = plate
             for j, char in enumerate(plate): 
                 # plt_show_rgb(char)
-                char = cv2.GaussianBlur((char), (3, 3), 0)
+                char = cv2.resize(char, (w, h))
+                char = cv2.GaussianBlur((char), (1, 1), 0)
                 gray_char = cv2.cvtColor(char, cv2.COLOR_BGR2GRAY)
-                if colour == "blue":
+                if colour == "blue" or colour == "black":
                     _, binary_char = cv2.threshold(gray_char, 0, 255, cv2.THRESH_OTSU)
                 else:
                     _, binary_char = cv2.threshold(gray_char, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-                binary_char = cv2.resize(binary_char, (w, h))
                 se = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
                 binary_char = cv2.morphologyEx(binary_char, cv2.MORPH_CLOSE, se)
                 cv2.imwrite(f"./output/{j}.jpg", binary_char)
                 # plt_show_gray(binary_char)
                 best_score = []
+                # loop through all templates of different characters
                 for k, templates in enumerate(templates_list):
                     score = []
+                    # loop through all templates of the same character
                     for template_path in templates:
                         template_img = cv2.imdecode(np.fromfile(template_path, dtype=np.uint8), -1)
                         res = cv2.matchTemplate(binary_char, template_img, cv2.TM_CCOEFF_NORMED)
-                        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+                        _, max_val, _, _ = cv2.minMaxLoc(res)
                         score.append([max_val, k])
+                    # scores for the same character
                     score.sort(reverse=True)
                     best_score.append(score[0])
+                # best matching character
                 best_score.sort(reverse=True)
-                identified_char = self.template1[best_score[0][1]]
+                identified_char = self.templates[best_score[0][1]]
                 if identified_char == "_":
                     identified_char = ""
                 identified_chars += identified_char

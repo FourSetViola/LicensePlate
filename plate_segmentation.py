@@ -12,11 +12,12 @@ def show_image(title, image):
     cv2.destroyAllWindows()
 
 # Plt show image
-def plt_show_rgb(image):
+def plt_show_rgb(image, t=""):
     # swap channels
     b, g, r = cv2.split(image)
     image = cv2.merge([r, g, b])
     plt.imshow(image)
+    plt.title(t)
     plt.show()
 
 # Plt show gray image
@@ -37,7 +38,7 @@ def zoom(w, h, max_length):
         return resizedWidth, resizedHeight
 
 def constraint(colour, aspect_ratio):
-    if colour == "blue":
+    if colour == "blue" or colour == "green" or colour == "black":
         return (aspect_ratio > 1.8 and aspect_ratio < 3) or \
             (aspect_ratio > 5 and aspect_ratio < 6) or \
             (aspect_ratio > 7 and aspect_ratio < 8)
@@ -62,13 +63,13 @@ class Segment:
             # binarize
             _, binary_plate = cv2.threshold(gray_plate, 0, 255, cv2.THRESH_OTSU)
             # unify the binary form for plates of all colours
-            if colour == "blue":
+            if colour == "blue" or colour == "black":
                 _, binary_plate = cv2.threshold(gray_plate, 0, 255, cv2.THRESH_OTSU)
             else:
-                _, binary_plate = cv2.threshold(gray_plate, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+                _, binary_plate = cv2.threshold(gray_plate, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
             # show_image("binary_plate", binary_plate)
             # dilation
-            if colour == "blue" or colour == "green":
+            if colour == "blue" or colour == "green" or colour == "black":
                 se_circle = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
             # se2 = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
                 binary_plate = cv2.morphologyEx(binary_plate, cv2.MORPH_OPEN, se_circle)
@@ -85,19 +86,13 @@ class Segment:
             contours = [contour for contour in contours if cv2.contourArea(contour) > 200]
             # view contours
             plate_copy = plate.copy()
-            cv2.drawContours(plate_copy, contours, -1, (0, 0, 255), 5)
-            # show_image("contours", plate_copy)
+            # draw contours in matplot
+            # plt_show_rgb(cv2.drawContours(plate_copy, contours, -1, (0, 0, 255), 5), "Contours of characters")
             # segment characters
             chars = []
             for contour in contours:
-                char = []
                 rect = cv2.boundingRect(contour)
-                x, y, w, h = rect
-                char.append(x)
-                char.append(y)
-                char.append(w)
-                char.append(h)
-                chars.append(char)
+                chars.append(rect)
             chars = sorted(chars, key=lambda char: char[0])
             i = 1
             for char in chars:
@@ -113,12 +108,11 @@ class Segment:
                 print("chars: ", len(chars))
                 plates_in_chars.append([colour, plate_in_chars])
                 cv2.imwrite("./output/processed_plate.jpg", binary_plate)
-                # plt_show_gray(binary_plate)
         return plates_in_chars
 
 if __name__ == "__main__":
     from plate_localization import Locator
-    locator = Locator("image/4.jpeg")
+    locator = Locator("function2/5.jpg")
     plates = locator.find_plate()
     segment = Segment(plates)
     segment.segment_plate()

@@ -14,11 +14,12 @@ def show_image(title, image):
     cv2.destroyAllWindows()
 
 # Plt show image
-def plt_show_rgb(image):
+def plt_show_rgb(image, t=""):
     # swap channels
     b, g, r = cv2.split(image)
     image = cv2.merge([r, g, b])
     plt.imshow(image)
+    plt.title(t)
     plt.show()
 
 # Plt show gray image
@@ -74,7 +75,7 @@ class Locator:
                 S = img_hsv.item(row, col, 1)
                 V = img_hsv.item(row, col, 2)
                 if colour == "black":
-                    if V < 46:
+                    if V < 80:
                         colour_plate[row, col] = 255
                 else:
                     if thres1 < H <= thres2 and S > 34 and V > 46:
@@ -90,6 +91,7 @@ class Locator:
         if len(contours) == 0:
             return None
         largest_contour = max(contours, key=cv2.contourArea)
+        # get convex hull (凸包)
         hull = cv2.convexHull(largest_contour)
         # approximate the quadrilateral shape of the plate
         epsilon = 0.02 * cv2.arcLength(hull, True)
@@ -104,9 +106,9 @@ class Locator:
         # left top, right top, right bottom, left bottom
         approx_quad = np.array([left[0], left[1], right[1], right[0]])
         # display
-        cv2.polylines(img_hsv, [approx_quad.reshape(-1, 1, 2)], isClosed=True, color=(255, 0, 0), thickness=5)
-        # show_image("Plated relocated", img_hsv)
-
+        img_hsv = cv2.cvtColor(img_hsv, cv2.COLOR_HSV2BGR)
+        cv2.drawContours(img_hsv, [approx_quad], -1, (0, 255, 0), 2)
+        # show_image("Plate", img_hsv)
         return approx_quad
 
     def get_by_colour(self, adjusted_plates):
@@ -129,7 +131,7 @@ class Locator:
                         green += 1
                     elif 99 < H <= 124 and S > 34:
                         blue += 1
-                    elif V < 46:
+                    elif V < 150:
                         black += 1
             thres1 = thres2 = 0
             if yellow * 3 >= size:
@@ -147,7 +149,6 @@ class Locator:
             elif black * 3 >= size:
                 colour = "black"
                 thres1 = thres2 = 0
-
             print(colour)
             colours.append(colour)
             # next plate
@@ -201,7 +202,7 @@ class Locator:
             affined_plate = affined_image[int(LT[1]):int(new_LB[1]), int(new_LB[0]):int(new_RB[0])]
             if affined_plate.size != 0:
                 adjusted_plates.append(affined_plate)
-                # show_image("Affined plate", affined_plate)
+                # plt_show_rgb(affined_plate, "Affine Transform")
         return adjusted_plates
 
     def projection_transform(self, plate, src_points):
@@ -215,6 +216,7 @@ class Locator:
         adjusted_plate = cv2.warpPerspective(plate, M, (w, h))
         if adjusted_plate.size != 0:
             # show_image("Adjusted plate", adjusted_plate)
+            # plt_show_rgb(adjusted_plate, "Projection Transform")
             return adjusted_plate
 
     def find_plate(self):
@@ -237,8 +239,6 @@ class Locator:
         weighted_img = cv2.addWeighted(gray_image, 1, opened_img, -1, 0)
         # Binarize
         ret, binary_img = cv2.threshold(weighted_img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        # plt_show_gray(binary_img)
-        # Find edge
         edges = cv2.Canny(binary_img, 100, 200)
         # plt_show_gray(edges)
         # Close and open
@@ -260,12 +260,12 @@ class Locator:
             if w < h:
                 w, h = h, w # swap width and height
             aspect_ratio = w / h
+            # filter out invalid contours
             if aspect_ratio > 2 and aspect_ratio < 7:
                 plates.append(rect)
                 cv2.drawContours(canvas, contours, index, (255, 255, 255), 1, 8)
                 box = cv2.boxPoints(rect)
                 box = np.intp(box)
-                cv2.drawContours(canvas, [box], 0, (0, 0, 255), 1)
         # show_image("image", canvas)
         print("Plates detected: {}".format(len(plates)))
         # Affine transform
@@ -283,5 +283,5 @@ class Locator:
 
 
 if __name__ == "__main__":
-    locator = Locator("image/1.jpg")
+    locator = Locator("image/8.jpeg")
     locator.find_plate()
